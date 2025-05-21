@@ -1,2 +1,298 @@
-# Auto detect text files and perform LF normalization
-* text=auto
+import tkinter as tk
+from tkinter import ttk, messagebox, filedialog
+from tkinter.ttk import Combobox
+from PIL import Image, ImageTk
+import openpyxl
+from openpyxl import Workbook
+import pathlib
+import os
+from datetime import date
+
+# Get Desktop path explicitly (avoiding OneDrive Desktop)
+desktop_path = os.path.join(os.environ['USERPROFILE'], 'C:\\Users\\rohit\\OneDrive\\Desktop')
+excel_file_path = os.path.join(desktop_path,"Student_Detail.xlsx")
+image_folder = os.path.join(desktop_path, "Student Images")
+
+if not os.path.exists(image_folder):
+    os.makedirs(image_folder)
+
+# Colors and fonts
+background = "#06283D"
+framebg = "#EDEDED"
+framefg = "#06283D"
+
+root = tk.Tk()
+root.geometry("1250x700+210+100")
+root.configure(bg=background)
+root.title("Student Data Management System")
+
+# Variables
+Registration = tk.IntVar()
+Date = tk.StringVar()
+Name = tk.StringVar()
+Age = tk.StringVar()
+Class = tk.StringVar()
+Gender = tk.StringVar()
+Rollno = tk.StringVar()
+Section = tk.StringVar()
+FatherName = tk.StringVar()
+MotherName = tk.StringVar()
+Religion = tk.StringVar()
+Mobile = tk.StringVar()
+
+img = None  # For profile image
+photo_img = None  # Tkinter image
+
+# Create Excel file with headers if not exists
+def setup_excel():
+    file = pathlib.Path(excel_file_path)
+    if not file.exists():
+        wb = Workbook()
+        sheet = wb.active
+        headers = ["Registration No.", "Date", "Age", "Gender", "Class", "Name",
+                   "Religion", "Roll No.", "Section", "Father Name", "Mother Name", "Mobile"]
+        sheet.append(headers)
+        wb.save(excel_file_path)
+
+setup_excel()
+
+def registration_no():
+    try:
+        wb = openpyxl.load_workbook(excel_file_path)
+        sheet = wb.active
+        last_row = sheet.max_row
+        last_reg = sheet.cell(row=last_row, column=1).value
+        if last_reg is None:
+            Registration.set(1)
+        else:
+            Registration.set(int(last_reg) + 1)
+    except Exception:
+        Registration.set(1)
+
+def set_today_date():
+    today = date.today()
+    Date.set(today.strftime("%d/%m/%Y"))
+
+def show_image():
+    global img, photo_img
+    filetypes = [("Image files", "*.jpg *.jpeg *.png"), ("All files", "*.*")]
+    filename = filedialog.askopenfilename(initialdir=os.getcwd(),
+                                          title="Select Image file",
+                                          filetypes=filetypes)
+    if not filename:
+        return
+    try:
+        img = Image.open(filename)
+        resized = img.resize((190, 190))
+        photo_img = ImageTk.PhotoImage(resized)
+        label_image.config(image=photo_img, text="")
+        label_image.image = photo_img
+    except Exception as e:
+        messagebox.showerror("Error", f"Failed to load image:\n{e}")
+
+def save():
+    global img
+    R1 = Registration.get()
+    D1 = Date.get()
+    D2 = Age.get()
+    G1 = Gender.get()
+    C1 = Class.get()
+    N1 = Name.get()
+    Re1 = Religion.get()
+    S1 = Rollno.get()
+    S2 = Section.get()
+    F1 = FatherName.get()
+    F2 = MotherName.get()
+    M2 = Mobile.get()
+
+    # Validation
+    if not N1.strip() or C1 == "Select Class" or not D2.strip() or not S1.strip() or not Re1.strip() or S2 == "Select Section" or not F1.strip() or not F2.strip() or not M2.strip() or G1 == "":
+        messagebox.showerror("Error", "Some data is missing or invalid.")
+        return
+
+    try:
+        wb = openpyxl.load_workbook(excel_file_path)
+        sheet = wb.active
+        new_row = sheet.max_row + 1
+        sheet.cell(row=new_row, column=1, value=R1)
+        sheet.cell(row=new_row, column=2, value=D1)
+        sheet.cell(row=new_row, column=3, value=D2)
+        sheet.cell(row=new_row, column=4, value=G1)
+        sheet.cell(row=new_row, column=5, value=C1)
+        sheet.cell(row=new_row, column=6, value=N1)
+        sheet.cell(row=new_row, column=7, value=Re1)
+        sheet.cell(row=new_row, column=8, value=S1)
+        sheet.cell(row=new_row, column=9, value=S2)
+        sheet.cell(row=new_row, column=10, value=F1)
+        sheet.cell(row=new_row, column=11, value=F2)
+        sheet.cell(row=new_row, column=12, value=M2)
+        wb.save(excel_file_path)
+    except Exception as e:
+        messagebox.showerror("Error", f"Failed to save data:\n{e}")
+        return
+
+    if img:
+        try:
+            img.save(os.path.join(image_folder, f"{R1}.jpg"))
+        except Exception as e:
+            messagebox.showwarning("Warning", f"Failed to save profile picture:\n{e}")
+
+    messagebox.showinfo("Success", "Data saved successfully!")
+    reset()
+    registration_no()
+
+def reset():
+    Name.set("")
+    Age.set("")
+    Class.set("Select Class")
+    Gender.set("")
+    Rollno.set("")
+    Section.set("Select Section")
+    FatherName.set("")
+    MotherName.set("")
+    Religion.set("")
+    Mobile.set("")
+    global img, photo_img
+    img = None
+    photo_img = None
+    label_image.config(image="", text="No Image")
+    registration_no()
+    set_today_date()
+    save_button.config(state="normal")
+
+def search():
+    text = search_var.get().strip()
+    if not text.isdigit():
+        messagebox.showerror("Error", "Please enter a valid registration number.")
+        return
+
+    reset()
+    save_button.config(state="disabled")
+
+    try:
+        wb = openpyxl.load_workbook(excel_file_path)
+        sheet = wb.active
+        found = False
+        for row in sheet.iter_rows(min_row=2):
+            if row[0].value == int(text):
+                Registration.set(row[0].value)
+                Date.set(row[1].value)
+                Age.set(row[2].value)
+                Gender.set(row[3].value)
+                Class.set(row[4].value)
+                Name.set(row[5].value)
+                Religion.set(row[6].value)
+                Rollno.set(row[7].value)
+                Section.set(row[8].value)
+                FatherName.set(row[9].value)
+                MotherName.set(row[10].value)
+                Mobile.set(row[11].value)
+
+                img_path = os.path.join(image_folder, f"{row[0].value}.jpg")
+                global img, photo_img
+                if os.path.exists(img_path):
+                    img = Image.open(img_path)
+                    resized = img.resize((190, 190))
+                    photo_img = ImageTk.PhotoImage(resized)
+                    label_image.config(image=photo_img, text="")
+                    label_image.image = photo_img
+                else:
+                    label_image.config(image="", text="No Image")
+
+                found = True
+                break
+
+        if not found:
+            messagebox.showerror("Not Found", "Registration number not found.")
+            save_button.config(state="normal")
+
+    except Exception as e:
+        messagebox.showerror("Error", f"Failed to search data:\n{e}")
+        save_button.config(state="normal")
+
+def exit_app():
+    root.destroy()
+
+# GUI Setup
+
+tk.Label(root, text="Student Data Management System", bg=background, fg="white", font=("Arial", 20, "bold")).pack(side=tk.TOP, fill=tk.X)
+search_var = tk.StringVar()
+tk.Label(root, text="Search Reg No:", bg=background, fg="white", font=("Arial", 12)).place(x=700, y=70)
+search_entry = tk.Entry(root, textvariable=search_var, font=("Arial", 14), width=15)
+search_entry.place(x=820, y=70)
+search_button = tk.Button(root, text="Search", command=search)
+search_button.place(x=990, y=68)
+
+tk.Label(root, text="Registration No:", font=("Arial", 13), bg=background, fg="white").place(x=30, y=150)
+reg_entry = tk.Entry(root, textvariable=Registration, font=("Arial", 12), width=15, state="readonly")
+reg_entry.place(x=150, y=153)
+
+tk.Label(root, text="Date:", font=("Arial", 13), bg=background, fg="white").place(x=500, y=150)
+date_entry = tk.Entry(root, textvariable=Date, font=("Arial", 12), width=15, state="readonly")
+date_entry.place(x=545, y=153)
+
+details_frame = tk.LabelFrame(root, text="Student's Details", font=("Arial", 15), bd=2, width=900, height=220, relief=tk.GROOVE, bg=framebg, fg=framefg)
+details_frame.place(x=30, y=200)
+
+tk.Label(details_frame, text="Full Name:", font=("Arial", 13), bg=framebg).place(x=5, y=10)
+tk.Entry(details_frame, textvariable=Name, font=("Arial", 12), width=20).place(x=100, y=10)
+
+tk.Label(details_frame, text="Age:", font=("Arial", 13), bg=framebg).place(x=5, y=50)
+tk.Entry(details_frame, textvariable=Age, font=("Arial", 12), width=20).place(x=100, y=50)
+
+tk.Label(details_frame, text="Class:", font=("Arial", 13), bg=framebg).place(x=5, y=90)
+class_cb = Combobox(details_frame, textvariable=Class, values=[str(i) for i in range(1, 13)], state="readonly", width=18, font=("Arial", 12))
+class_cb.place(x=100, y=90)
+Class.set("Select Class")
+
+tk.Label(details_frame, text="Gender:", font=("Arial", 13), bg=framebg).place(x=350, y=10)
+gender_frame = tk.Frame(details_frame, bg=framebg)
+gender_frame.place(x=420, y=10)
+tk.Radiobutton(gender_frame, text="Male", variable=Gender, value="Male", bg=framebg, font=("Arial", 12)).pack(side=tk.LEFT, padx=10)
+tk.Radiobutton(gender_frame, text="Female", variable=Gender, value="Female", bg=framebg, font=("Arial", 12)).pack(side=tk.LEFT, padx=10)
+
+tk.Label(details_frame, text="Roll No:", font=("Arial", 13), bg=framebg).place(x=350, y=50)
+tk.Entry(details_frame, textvariable=Rollno, font=("Arial", 12), width=20).place(x=420, y=50)
+
+tk.Label(details_frame, text="Section:", font=("Arial", 13), bg=framebg).place(x=350, y=90)
+section_cb = Combobox(details_frame, textvariable=Section, values=["A", "B", "C", "D"], state="readonly", width=18, font=("Arial", 12))
+section_cb.place(x=420, y=90)
+Section.set("Select Section")
+
+parents_frame = tk.LabelFrame(root, text="Parents Details", font=("Arial", 15), bd=2, width=900, height=220, relief=tk.GROOVE, bg=framebg, fg=framefg)
+parents_frame.place(x=30, y=455)
+
+tk.Label(parents_frame, text="Father Name:", font=("Arial", 13), bg=framebg).place(x=5, y=10)
+tk.Entry(parents_frame, textvariable=FatherName, font=("Arial", 12), width=20).place(x=150, y=10)
+
+tk.Label(parents_frame, text="Mother Name:", font=("Arial", 13), bg=framebg).place(x=5, y=50)
+tk.Entry(parents_frame, textvariable=MotherName, font=("Arial", 12), width=20).place(x=150, y=50)
+
+tk.Label(parents_frame, text="Religion:", font=("Arial", 13), bg=framebg).place(x=400, y=10)
+tk.Entry(parents_frame, textvariable=Religion, font=("Arial", 12), width=20).place(x=480, y=10)
+
+tk.Label(parents_frame, text="Mobile:", font=("Arial", 13), bg=framebg).place(x=400, y=50)
+tk.Entry(parents_frame, textvariable=Mobile, font=("Arial", 12), width=20).place(x=480, y=50)
+
+image_frame = tk.Frame(root, bg=framebg, bd=4, width=200, height=180, relief=tk.GROOVE)
+image_frame.place(x=1000, y=200)
+image_frame.pack_propagate(False)
+
+label_image = tk.Label(image_frame, text="No Image", bg=framebg)
+label_image.pack(expand=True)
+
+upload_button = tk.Button(root, text="Upload Image", bg="green", fg="white", font=("Arial", 15), command=show_image)
+upload_button.place(x=1000, y=400, width=200, height=40)
+
+save_button = tk.Button(root, text="Save", bg="gray", fg="white", font=("Arial", 15), command=save)
+save_button.place(x=1000, y=470, width=200, height=40)
+
+reset_button = tk.Button(root, text="Reset", bg="lightblue", fg="black", font=("Arial", 15), command=reset)
+reset_button.place(x=1000, y=540, width=200, height=40)
+
+exit_button = tk.Button(root, text="Exit", bg="red", fg="white", font=("Arial", 15), command=exit_app)
+exit_button.place(x=1000, y=610, width=200, height=40)
+registration_no()
+set_today_date()
+root.mainloop()
+
